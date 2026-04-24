@@ -1,0 +1,16 @@
+{
+  "name": "divide",
+  "description": "Calculates the division of two numbers (a / b).",
+  "args": [
+    {
+      "id": "a",
+      "label": "Dividend (a)",
+      "type": "number"
+    },
+    {
+      "id": "b",
+      "label": "Divisor (b)",
+      "type": "number"
+    }
+  ]
+}

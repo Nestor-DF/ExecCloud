@@ -1,0 +1,31 @@
+{
+  "name": "bmi_adjusted",
+  "description": "Calculates an adjusted Body Mass Index based on weight, height, age, sex, and activity level.",
+  "args": [
+    {
+      "id": "weight",
+      "label": "Weight (kg)",
+      "type": "number"
+    },
+    {
+      "id": "height",
+      "label": "Height (meters)",
+      "type": "number"
+    },
+    {
+      "id": "age",
+      "label": "Age",
+      "type": "number"
+    },
+    {
+      "id": "sex",
+      "label": "Sex (0 = female, 1 = male)",
+      "type": "number"
+    },
+    {
+      "id": "activity",
+      "label": "Activity Level (1-5)",
+      "type": "number"
+    }
+  ]
+}
