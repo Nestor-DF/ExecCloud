@@ -238,6 +238,46 @@ header p {
     overflow: hidden;
 }
 
+.preview-card__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.5rem;
+}
+
+.preview-card__tag {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border-radius: 3px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    background: #f3f3f3;
+    color: #888;
+    border: 1px solid #e8e8e8;
+}
+
+.preview-card__tag--file {
+    background: #f0f4ff;
+    color: #4a6fa5;
+    border-color: #d6e2f5;
+}
+
+.preview-card__tag--output_file {
+    background: #f0fdf4;
+    color: #15803d;
+    border-color: #d1fae5;
+}
+
+.preview-card__tag--wrapper {
+    background: #fef9ee;
+    color: #b45309;
+    border-color: #fde68a;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0;
+}
+
 .preview-card__arrow {
     margin-top: auto;
     padding-top: 0.75rem;
@@ -311,8 +351,8 @@ header p {
 }
 
 .modal-content--service {
-    max-width: 520px;
-    max-height: 85vh;
+    max-width: 560px;
+    max-height: 88vh;
     overflow-y: auto;
 }
 
@@ -359,6 +399,27 @@ header p {
     margin-top: 0.25rem;
 }
 
+/* Execution info badge */
+.exec-info {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+    padding: 0.3rem 0.7rem;
+    background: #fef9ee;
+    border: 1px solid #fde68a;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    font-family: 'Courier New', monospace;
+    color: #b45309;
+}
+
+.exec-info svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
 .service-modal-actions {
     margin-top: 1.5rem;
     padding-top: 1.25rem;
@@ -385,7 +446,7 @@ header p {
     color: #fff;
 }
 
-/* Forms */
+/* ===== Forms ===== */
 .form-group {
     margin-bottom: 1.5rem;
 }
@@ -400,7 +461,8 @@ header p {
     letter-spacing: 0.5px;
 }
 
-.form-group input {
+.form-group input[type="text"],
+.form-group input[type="number"] {
     width: 100%;
     padding: 0.75rem 1rem;
     border-radius: 4px;
@@ -412,14 +474,109 @@ header p {
     transition: border-color 0.2s ease;
 }
 
-.form-group input:focus {
+.form-group input[type="text"]:focus,
+.form-group input[type="number"]:focus {
     outline: none;
     border-color: #000;
     background: #fff;
 }
 
+/* ===== File Input (custom) ===== */
+.file-input-wrapper {
+    position: relative;
+}
+
+.file-input-hidden {
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.file-input-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    padding: 1.25rem 1rem;
+    border: 2px dashed var(--border-color);
+    border-radius: 6px;
+    background: var(--input-bg);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.file-input-display:hover {
+    border-color: #bbb;
+    background: #f5f5f5;
+}
+
+.file-input-wrapper.drag-over .file-input-display {
+    border-color: #000;
+    background: #f0f0f0;
+}
+
+.file-input-wrapper.has-file .file-input-display {
+    border-color: var(--success);
+    border-style: solid;
+    background: #f0fdf4;
+}
+
+.file-input-icon {
+    width: 20px;
+    height: 20px;
+    color: #aaa;
+    flex-shrink: 0;
+}
+
+.file-input-wrapper.has-file .file-input-icon {
+    color: var(--success);
+}
+
+.file-input-text {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+}
+
+.file-input-name {
+    display: none;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--text-main);
+    word-break: break-all;
+}
+
+/* ===== Output File Info Badge ===== */
+.output-file-info {
+    margin-bottom: 1.5rem;
+}
+
+.output-file-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1rem;
+    background: #f0fdf4;
+    border: 1px solid #d1fae5;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    color: var(--success);
+}
+
+.output-file-badge svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+/* ===== Result / Output ===== */
+.result-container {
+    margin-top: 1rem;
+}
+
 .result-box {
-    margin-top: 1.5rem;
     padding: 1rem;
     border-radius: 4px;
     background: #fafafa;
@@ -441,6 +598,72 @@ header p {
     display: block;
     border-color: var(--error);
     color: var(--error);
+}
+
+/* Executing spinner */
+.executing-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #ddd;
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    margin-right: 0.5rem;
+    vertical-align: middle;
+}
+
+/* Output files container */
+.output-files-container {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.output-file-item {
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 1rem;
+    background: #fafafa;
+}
+
+.output-file-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+}
+
+.output-image-preview {
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+    background: #eee;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.output-image-preview img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+.output-media-preview {
+    width: 100%;
+    max-height: 300px;
+    border-radius: 4px;
+    margin-bottom: 0.75rem;
+}
+
+.output-download-btn {
+    font-size: 0.85rem;
+    padding: 0.5rem 1rem;
+    text-decoration: none;
 }
 
 /* Status message */
@@ -484,6 +707,10 @@ header p {
 @keyframes modalSlideIn {
     from { opacity: 0; transform: translateY(-16px) scale(0.97); }
     to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
 /* ===== Responsive ===== */

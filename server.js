@@ -4,17 +4,22 @@ const multer = require('multer');
 const fs = require('fs/promises');
 const path = require('path');
 const { execFile } = require('child_process');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SERVICES_DIR = path.join(__dirname, 'services');
+const TMP_DIR = path.join(SERVICES_DIR, 'tmp');
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Setup multer for file uploads
-const storage = multer.diskStorage({
+// Serve temp output files so the frontend can fetch them
+app.use('/api/tmp', express.static(TMP_DIR));
+
+// Setup multer for service upload (binary + config)
+const serviceUploadStorage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, SERVICES_DIR);
     },
@@ -22,12 +27,52 @@ const storage = multer.diskStorage({
         cb(null, file.originalname);
     }
 });
-const upload = multer({ storage });
+const serviceUpload = multer({ storage: serviceUploadStorage });
 
-// Ensure services directory exists
-fs.mkdir(SERVICES_DIR, { recursive: true }).catch(console.error);
+// Setup multer for execution file arguments (stored in per-execution temp dirs)
+// We use memoryStorage here and write to the temp dir manually so we control the path
+const executionUpload = multer({ storage: multer.memoryStorage() });
 
-// 1. Get all available services and their input forms
+// Ensure directories exist
+(async () => {
+    await fs.mkdir(SERVICES_DIR, { recursive: true });
+    await fs.mkdir(TMP_DIR, { recursive: true });
+})().catch(console.error);
+
+// ── Helpers ──
+
+/**
+ * Create a unique temporary directory for a single execution.
+ * Returns the absolute path to the created directory and its basename.
+ */
+async function createExecTmpDir() {
+    const id = crypto.randomBytes(8).toString('hex');
+    const dirPath = path.join(TMP_DIR, id);
+    await fs.mkdir(dirPath, { recursive: true });
+    return { dirPath, id };
+}
+
+/**
+ * Schedule cleanup of a temp directory after a delay.
+ */
+function scheduleCleanup(dirPath, delayMs = 60000) {
+    setTimeout(async () => {
+        try {
+            await fs.rm(dirPath, { recursive: true, force: true });
+        } catch (e) {
+            console.error(`Cleanup failed for ${dirPath}:`, e.message);
+        }
+    }, delayMs);
+}
+
+/**
+ * Validate service name to prevent directory traversal.
+ */
+function isValidServiceName(name) {
+    return name && !name.includes('/') && !name.includes('\\') && !name.includes('..');
+}
+
+// ── 1. Get all available services ──
 app.get('/api/services', async (req, res) => {
     try {
         const files = await fs.readdir(SERVICES_DIR);
@@ -50,20 +95,20 @@ app.get('/api/services', async (req, res) => {
     }
 });
 
-// 2. Execute a given service
-app.post('/api/execute/:serviceName', async (req, res) => {
+// ── 2. Execute a service (supports text, number, file, and output_file args) ──
+app.post('/api/execute/:serviceName', executionUpload.any(), async (req, res) => {
     const { serviceName } = req.params;
-    const params = req.body; // Map of argument id -> value
+
+    if (!isValidServiceName(serviceName)) {
+        return res.status(400).json({ success: false, error: 'Invalid service name' });
+    }
+
+    let tmpDir = null;
 
     try {
-        // Read configuration to determine argument order
+        // Read service configuration
         const configPath = path.join(SERVICES_DIR, `${serviceName}.json`);
         const binaryPath = path.join(SERVICES_DIR, serviceName);
-
-        // Basic security check: prevent directory traversal
-        if (serviceName.includes('/') || serviceName.includes('..')) {
-            return res.status(400).json({ success: false, error: 'Invalid service name' });
-        }
 
         let configData;
         try {
@@ -73,34 +118,134 @@ app.post('/api/execute/:serviceName', async (req, res) => {
             return res.status(404).json({ success: false, error: 'Service configuration not found.' });
         }
 
-        // Prepare arguments in the correct order
-        const args = [];
-        for (const argDef of configData.args) {
-            const val = params[argDef.id];
-            if (val === undefined || val === null) {
-                return res.status(400).json({ success: false, error: `Missing required argument: ${argDef.id}` });
-            }
-            args.push(String(val));
+        // Determine if we need a temp directory (any file or output_file args)
+        const hasFileArgs = configData.args && configData.args.some(
+            a => a.type === 'file' || a.type === 'output_file'
+        );
+
+        if (hasFileArgs) {
+            tmpDir = await createExecTmpDir();
         }
 
-        // Execute the binary securely
-        execFile(binaryPath, args, { timeout: 5000 }, (error, stdout, stderr) => {
+        // Build the uploaded files map: fieldname -> file info
+        const uploadedFiles = {};
+        if (req.files) {
+            for (const f of req.files) {
+                uploadedFiles[f.fieldname] = f;
+            }
+        }
+
+        // Prepare arguments in the order defined by config
+        const args = [];
+        const outputFiles = []; // Track output file paths for response
+
+        for (const argDef of (configData.args || [])) {
+            const argType = argDef.type || 'text';
+
+            if (argType === 'text' || argType === 'number') {
+                // Text/number: read from body fields (multipart form fields)
+                const val = req.body[argDef.id];
+                if (val === undefined || val === null || val === '') {
+                    return res.status(400).json({ success: false, error: `Missing required argument: ${argDef.id}` });
+                }
+                args.push(String(val));
+
+            } else if (argType === 'file') {
+                // File: write uploaded buffer to temp dir, pass the path
+                const uploaded = uploadedFiles[argDef.id];
+                if (!uploaded) {
+                    return res.status(400).json({ success: false, error: `Missing required file: ${argDef.id}` });
+                }
+                const ext = path.extname(uploaded.originalname) || '';
+                const safeName = `${argDef.id}${ext}`;
+                const filePath = path.join(tmpDir.dirPath, safeName);
+                await fs.writeFile(filePath, uploaded.buffer);
+                args.push(filePath);
+
+            } else if (argType === 'output_file') {
+                // Output file: generate a temp path for the binary to write to
+                const ext = argDef.extension || '.out';
+                const safeName = `${argDef.id}${ext}`;
+                const filePath = path.join(tmpDir.dirPath, safeName);
+                args.push(filePath);
+                outputFiles.push({
+                    id: argDef.id,
+                    label: argDef.label || argDef.id,
+                    path: filePath,
+                    relativePath: `${tmpDir.id}/${safeName}`,
+                    extension: ext
+                });
+            }
+        }
+
+        // Determine command and arguments (support execution wrappers like mpirun)
+        let command = binaryPath;
+        let execArgs = args;
+        const execution = configData.execution;
+
+        if (execution && execution.wrapper) {
+            command = execution.wrapper;
+            execArgs = [...(execution.wrapperArgs || []), binaryPath, ...args];
+        }
+
+        // Determine timeout (default 30s, configurable per-service)
+        const timeout = (configData.timeout || 30) * 1000;
+
+        // Execute
+        execFile(command, execArgs, { timeout, maxBuffer: 10 * 1024 * 1024 }, async (error, stdout, stderr) => {
             if (error) {
                 console.error(`Execution error for ${serviceName}:`, error);
-                // Return exactly what the program errored with or stderr
+                if (tmpDir) scheduleCleanup(tmpDir.dirPath, 5000);
                 return res.status(500).json({ success: false, error: stderr || error.message });
             }
-            res.json({ success: true, result: stdout.trim(), stderr: stderr.trim() });
+
+            // Build response
+            const response = {
+                success: true,
+                result: stdout.trim(),
+                stderr: stderr.trim()
+            };
+
+            // Check which output files were actually created
+            if (outputFiles.length > 0) {
+                const createdFiles = [];
+                for (const of of outputFiles) {
+                    try {
+                        await fs.access(of.path);
+                        // Determine MIME type hint from extension
+                        const mimeType = getMimeType(of.extension);
+                        createdFiles.push({
+                            id: of.id,
+                            label: of.label,
+                            url: `/api/tmp/${of.relativePath}`,
+                            mimeType,
+                            extension: of.extension
+                        });
+                    } catch (e) {
+                        // Output file was not created by the binary — skip
+                        console.warn(`Output file not created: ${of.path}`);
+                    }
+                }
+                response.outputFiles = createdFiles;
+
+                // Schedule cleanup after 5 minutes to give the user time to download
+                if (tmpDir) scheduleCleanup(tmpDir.dirPath, 300000);
+            } else {
+                if (tmpDir) scheduleCleanup(tmpDir.dirPath, 5000);
+            }
+
+            res.json(response);
         });
 
     } catch (error) {
         console.error(`Server error executing ${serviceName}:`, error);
+        if (tmpDir) scheduleCleanup(tmpDir.dirPath, 5000);
         res.status(500).json({ success: false, error: 'Internal server error during execution' });
     }
 });
 
-// 3. Upload a new service (binary + config)
-app.post('/api/upload', upload.fields([
+// ── 3. Upload a new service (binary + config) ──
+app.post('/api/upload', serviceUpload.fields([
     { name: 'config', maxCount: 1 },
     { name: 'binary', maxCount: 1 }
 ]), async (req, res) => {
@@ -122,11 +267,11 @@ app.post('/api/upload', upload.fields([
     }
 });
 
-// 4. Delete a service
+// ── 4. Delete a service ──
 app.delete('/api/services/:serviceName', async (req, res) => {
     const { serviceName } = req.params;
     try {
-        if (serviceName.includes('/') || serviceName.includes('..')) {
+        if (!isValidServiceName(serviceName)) {
             return res.status(400).json({ success: false, error: 'Invalid service name' });
         }
         
@@ -150,6 +295,30 @@ app.delete('/api/services/:serviceName', async (req, res) => {
         res.status(500).json({ success: false, error: 'Failed to delete service.' });
     }
 });
+
+// ── Utility ──
+
+function getMimeType(ext) {
+    const map = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.bmp': 'image/bmp',
+        '.webp': 'image/webp',
+        '.svg': 'image/svg+xml',
+        '.pdf': 'application/pdf',
+        '.txt': 'text/plain',
+        '.csv': 'text/csv',
+        '.json': 'application/json',
+        '.wav': 'audio/wav',
+        '.mp3': 'audio/mpeg',
+        '.mp4': 'video/mp4',
+        '.avi': 'video/x-msvideo',
+        '.zip': 'application/zip',
+    };
+    return map[ext.toLowerCase()] || 'application/octet-stream';
+}
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

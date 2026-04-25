@@ -1,0 +1,19 @@
+{
+  "name": "filtro_cuda",
+  "description": "Applies a grayscale filter to an image using CUDA GPU acceleration.",
+  "timeout": 60,
+  "args": [
+    {
+      "id": "input_image",
+      "label": "Input Image",
+      "type": "file",
+      "accept": "image/*"
+    },
+    {
+      "id": "output_image",
+      "label": "Output Image",
+      "type": "output_file",
+      "extension": ".png"
+    }
+  ]
+}
