@@ -42,14 +42,105 @@
 
     <!-- Upload Modal -->
     <div id="uploadModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content modal-content--upload">
             <span class="close-btn" data-modal="uploadModal">&times;</span>
             <h2>Upload New Service</h2>
             <form id="uploadForm">
                 <div class="form-group">
-                    <label for="configFile">Service Config (.json)</label>
+                    <label for="configFile">
+                        Service Config (.json)
+                        <button type="button" id="configHelpToggle" class="config-help-toggle" aria-label="Show config format help" title="Show config format help">?</button>
+                    </label>
                     <input type="file" id="configFile" name="config" accept=".json" required>
                 </div>
+
+                <!-- Collapsible config help -->
+                <div id="configHelpPanel" class="config-help-panel">
+                    <div class="config-help-content">
+                        <h3>JSON Config Format</h3>
+                        <p>Each service requires a <code>.json</code> config file that describes the service name, arguments, and execution options.</p>
+
+                        <h4>Required Fields</h4>
+                        <table class="config-help-table">
+                            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><code>name</code></td><td>string</td><td>Unique service identifier (must match binary filename)</td></tr>
+                                <tr><td><code>description</code></td><td>string</td><td>Human-readable description shown in the UI</td></tr>
+                                <tr><td><code>args</code></td><td>array</td><td>List of argument definitions (can be empty <code>[]</code>)</td></tr>
+                            </tbody>
+                        </table>
+
+                        <h4>Optional Fields</h4>
+                        <table class="config-help-table">
+                            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><code>timeout</code></td><td>number</td><td>Execution timeout in seconds (default: 30)</td></tr>
+                                <tr><td><code>execution</code></td><td>object</td><td>Wrapper command config (e.g. for <code>mpirun</code>)</td></tr>
+                            </tbody>
+                        </table>
+
+                        <h4>Argument Types</h4>
+                        <p>Each object in <code>args</code> is passed to the binary as a CLI argument, in order.</p>
+                        <table class="config-help-table">
+                            <thead><tr><th>type</th><th>UI Input</th><th>Passed to Binary As</th></tr></thead>
+                            <tbody>
+                                <tr><td><code>text</code></td><td>Text field</td><td>String value</td></tr>
+                                <tr><td><code>number</code></td><td>Number field</td><td>String value</td></tr>
+                                <tr><td><code>file</code></td><td>File upload</td><td>Path to uploaded file</td></tr>
+                                <tr><td><code>output_file</code></td><td>Auto-generated</td><td>Path for binary to write output</td></tr>
+                            </tbody>
+                        </table>
+
+                        <h4>Argument Object Fields</h4>
+                        <table class="config-help-table">
+                            <thead><tr><th>Field</th><th>Required</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><code>id</code></td><td>Yes</td><td>Unique identifier for the argument</td></tr>
+                                <tr><td><code>label</code></td><td>Yes</td><td>Display label in the UI</td></tr>
+                                <tr><td><code>type</code></td><td>Yes</td><td><code>text</code>, <code>number</code>, <code>file</code>, or <code>output_file</code></td></tr>
+                                <tr><td><code>accept</code></td><td>No</td><td>MIME filter for <code>file</code> type (e.g. <code>image/*</code>)</td></tr>
+                                <tr><td><code>extension</code></td><td>No</td><td>File extension for <code>output_file</code> (e.g. <code>.png</code>)</td></tr>
+                                <tr><td><code>arg_description</code></td><td>No</td><td>Tooltip text shown next to the label</td></tr>
+                            </tbody>
+                        </table>
+
+                        <h4>Execution Wrapper (optional)</h4>
+                        <p>Use the <code>execution</code> block to run the binary through a wrapper like <code>mpirun</code>:</p>
+                        <pre><code>"execution": {
+  "wrapper": "mpirun",
+  "wrapperArgs": ["-np", "4"]
+}</code></pre>
+                        <p>This produces: <code>mpirun -np 4 ./binary arg1 arg2 ...</code></p>
+
+                        <h4>Full Example</h4>
+                        <pre><code>{
+  "name": "filtro_cuda",
+  "description": "Applies a filter using CUDA.",
+  "timeout": 60,
+  "args": [
+    {
+      "id": "input_image",
+      "label": "Input Image",
+      "type": "file",
+      "accept": "image/*"
+    },
+    {
+      "id": "output_image",
+      "label": "Output Image",
+      "type": "output_file",
+      "extension": ".png"
+    },
+    {
+      "id": "blockX",
+      "label": "Block X",
+      "type": "number",
+      "arg_description": "Threads per block in X."
+    }
+  ]
+}</code></pre>
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label for="binaryFile">Executable Binary</label>
                     <input type="file" id="binaryFile" name="binary" required>

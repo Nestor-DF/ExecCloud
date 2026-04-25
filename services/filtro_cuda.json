@@ -18,12 +18,14 @@
     {
       "id": "blockX",
       "label": "Block X",
-      "type": "number"
+      "type": "number",
+      "arg_description": "Number of threads per block in the X dimension of the CUDA kernel. Together with blockY, defines the 2D block size used for parallel execution."
     },
     {
       "id": "blockY",
       "label": "Block Y",
-      "type": "number"
+      "type": "number",
+      "arg_description": "Number of threads per block in the Y dimension of the CUDA kernel. Together with blockX, defines the 2D block size used for parallel execution."
     }
   ]
 }

@@ -356,6 +356,144 @@ header p {
     overflow-y: auto;
 }
 
+.modal-content--upload {
+    max-width: 620px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+/* ===== Config Help Toggle Button ===== */
+.config-help-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1.5px solid #ccc;
+    background: none;
+    color: #aaa;
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.config-help-toggle:hover,
+.config-help-toggle.active {
+    border-color: #000;
+    color: #000;
+    background: #f5f5f5;
+}
+
+/* ===== Config Help Panel (collapsible) ===== */
+.config-help-panel {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s ease, opacity 0.25s ease;
+    opacity: 0;
+}
+
+.config-help-panel.open {
+    max-height: 2000px;
+    opacity: 1;
+    margin-bottom: 1.25rem;
+}
+
+.config-help-content {
+    padding: 1rem 1.15rem;
+    background: #fafafa;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    margin-top: 0.5rem;
+}
+
+.config-help-content h3 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-bottom: 0.6rem;
+    color: var(--text-main);
+}
+
+.config-help-content h4 {
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-top: 1rem;
+    margin-bottom: 0.4rem;
+    color: var(--text-main);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.config-help-content p {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+    line-height: 1.5;
+}
+
+.config-help-content code {
+    font-family: 'Courier New', monospace;
+    font-size: 0.78rem;
+    background: #eee;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    color: var(--text-main);
+}
+
+.config-help-content pre {
+    background: #1a1a1a;
+    color: #e0e0e0;
+    padding: 0.8rem 1rem;
+    border-radius: 5px;
+    overflow-x: auto;
+    font-size: 0.76rem;
+    line-height: 1.55;
+    margin: 0.5rem 0;
+}
+
+.config-help-content pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+}
+
+/* Config help tables */
+.config-help-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    margin: 0.4rem 0 0.5rem;
+}
+
+.config-help-table th {
+    text-align: left;
+    padding: 0.35rem 0.5rem;
+    background: #eee;
+    font-weight: 600;
+    color: var(--text-main);
+    border-bottom: 1px solid #ddd;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.config-help-table td {
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid #f0f0f0;
+    color: var(--text-muted);
+    vertical-align: top;
+}
+
+.config-help-table tr:last-child td {
+    border-bottom: none;
+}
+
 .modal-content h2 {
     font-size: 1.2rem;
     font-weight: 600;
@@ -452,13 +590,76 @@ header p {
 }
 
 .form-group label {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
     margin-bottom: 0.5rem;
     font-size: 0.85rem;
     color: var(--text-muted);
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+}
+
+/* Arg description tooltip */
+.arg-info-tooltip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    cursor: help;
+    color: #aaa;
+    transition: color 0.15s;
+    flex-shrink: 0;
+}
+
+.arg-info-tooltip:hover {
+    color: #000;
+}
+
+.arg-info-tooltip::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 60px;
+    top: calc(100% + 6px);
+    transform: translateX(-50%);
+    background: #1a1a1a;
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    line-height: 1.45;
+    padding: 0.5rem 0.75rem;
+    border-radius: 5px;
+    white-space: normal;
+    width: max-content;
+    max-width: 240px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s, visibility 0.15s;
+    z-index: 10;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.arg-info-tooltip::before {
+    content: '';
+    position: absolute;
+    left: 60px;
+    top: calc(100% + 1px);
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-bottom-color: #1a1a1a;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s, visibility 0.15s;
+    z-index: 10;
+}
+
+.arg-info-tooltip:hover::after,
+.arg-info-tooltip:hover::before {
+    opacity: 1;
+    visibility: visible;
 }
 
 .form-group input[type="text"],

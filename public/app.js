@@ -57,6 +57,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const uploadForm = document.getElementById('uploadForm');
     const uploadStatus = document.getElementById('uploadStatus');
 
+    // Config help toggle
+    const configHelpToggle = document.getElementById('configHelpToggle');
+    const configHelpPanel = document.getElementById('configHelpPanel');
+
+    configHelpToggle.addEventListener('click', () => {
+        const isOpen = configHelpPanel.classList.toggle('open');
+        configHelpToggle.classList.toggle('active', isOpen);
+        configHelpToggle.setAttribute('aria-label', isOpen ? 'Hide config format help' : 'Show config format help');
+    });
+
     uploadForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const formData = new FormData(uploadForm);
@@ -216,18 +226,21 @@ document.addEventListener('DOMContentLoaded', () => {
             service.args.forEach(arg => {
                 const argType = arg.type || 'text';
                 const fieldId = `modal-${service.name}-${arg.id}`;
+                const tooltipHtml = arg.arg_description
+                    ? `<span class="arg-info-tooltip" data-tooltip="${escapeAttr(arg.arg_description)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>`
+                    : '';
 
                 if (argType === 'text') {
                     formHtml += `
                         <div class="form-group">
-                            <label for="${fieldId}">${escapeHtml(arg.label)}</label>
+                            <label for="${fieldId}">${escapeHtml(arg.label)}${tooltipHtml}</label>
                             <input type="text" id="${fieldId}" name="${arg.id}" required placeholder="Enter ${arg.label.toLowerCase()}">
                         </div>
                     `;
                 } else if (argType === 'number') {
                     formHtml += `
                         <div class="form-group">
-                            <label for="${fieldId}">${escapeHtml(arg.label)}</label>
+                            <label for="${fieldId}">${escapeHtml(arg.label)}${tooltipHtml}</label>
                             <input type="number" id="${fieldId}" name="${arg.id}" step="any" required placeholder="Enter ${arg.label.toLowerCase()}">
                         </div>
                     `;
@@ -235,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const accept = arg.accept || '';
                     formHtml += `
                         <div class="form-group">
-                            <label for="${fieldId}">${escapeHtml(arg.label)}</label>
+                            <label for="${fieldId}">${escapeHtml(arg.label)}${tooltipHtml}</label>
                             <div class="file-input-wrapper" id="wrapper-${fieldId}">
                                 <input type="file" id="${fieldId}" name="${arg.id}" accept="${accept}" required class="file-input-hidden">
                                 <div class="file-input-display">
@@ -249,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (argType === 'output_file') {
                     formHtml += `
                         <div class="form-group output-file-info">
-                            <label>${escapeHtml(arg.label)}</label>
+                            <label>${escapeHtml(arg.label)}${tooltipHtml}</label>
                             <div class="output-file-badge">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                                 <span>Generated automatically (${arg.extension || '.out'})</span>
@@ -502,6 +515,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+    }
+
+    function escapeAttr(str) {
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
     }
 
     // ── Init ──
