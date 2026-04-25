@@ -1,6 +1,6 @@
 {
   "name": "filtro_openmp",
-  "description": "Applies a grayscale filter to an image using OpenMP parallelism. Processes the input image and produces a filtered output.",
+  "description": "Applies a bilateral filter to an image using OpenMP parallelism. Processes the input image and produces a filtered output.",
   "timeout": 60,
   "args": [
     {

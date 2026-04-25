@@ -1,6 +1,6 @@
 {
   "name": "filtro_cuda",
-  "description": "Applies a grayscale filter to an image using CUDA GPU acceleration.",
+  "description": "Applies a bilateral filter to an image using CUDA GPU acceleration.",
   "timeout": 60,
   "args": [
     {
@@ -14,6 +14,16 @@
       "label": "Output Image",
       "type": "output_file",
       "extension": ".png"
+    },
+    {
+      "id": "blockX",
+      "label": "Block X",
+      "type": "number"
+    },
+    {
+      "id": "blockY",
+      "label": "Block Y",
+      "type": "number"
     }
   ]
 }

@@ -1,6 +1,6 @@
 {
   "name": "filtro_mpi",
-  "description": "Applies a grayscale filter to an image using MPI distributed parallelism with 4 processes.",
+  "description": "Applies a bilateral filter to an image using MPI distributed parallelism with 4 processes.",
   "timeout": 120,
   "execution": {
     "wrapper": "mpirun",
