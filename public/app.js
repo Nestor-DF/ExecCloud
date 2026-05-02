@@ -184,12 +184,22 @@ document.addEventListener('DOMContentLoaded', () => {
         card.setAttribute('aria-label', `Open service: ${service.name}`);
 
         // Build tags for arg types
-        const argTypes = (service.args || []).map(a => a.type || 'text');
-        const uniqueTypes = [...new Set(argTypes)];
-        const tagsHtml = uniqueTypes.map(t => {
-            const label = { text: 'Text', number: 'Number', file: 'File', output_file: 'Output' }[t] || t;
-            return `<span class="preview-card__tag preview-card__tag--${t}">${label}</span>`;
-        }).join('');
+        let tagsHtml = '';
+        if (service.type === 'docker') {
+            tagsHtml = `<span class="preview-card__tag preview-card__tag--docker" style="background:var(--primary-color);color:#888">Docker App</span>`;
+            if (service.status === 'running') {
+                tagsHtml += ` <span class="preview-card__tag preview-card__tag--running" style="background:var(--success);color:#fff">Running</span>`;
+            } else {
+                tagsHtml += ` <span class="preview-card__tag preview-card__tag--stopped" style="background:var(--error);color:#fff">Stopped</span>`;
+            }
+        } else {
+            const argTypes = (service.args || []).map(a => a.type || 'text');
+            const uniqueTypes = [...new Set(argTypes)];
+            tagsHtml = uniqueTypes.map(t => {
+                const label = { text: 'Text', number: 'Number', file: 'File', output_file: 'Output' }[t] || t;
+                return `<span class="preview-card__tag preview-card__tag--${t}">${label}</span>`;
+            }).join('');
+        }
 
         // Show execution wrapper badge if present
         const wrapperBadge = service.execution && service.execution.wrapper
@@ -220,76 +230,90 @@ document.addEventListener('DOMContentLoaded', () => {
         const formId = `modal-form-${service.name}`;
         const resultId = `modal-result-${service.name}`;
 
+        let execInfoHtml = '';
         let formHtml = `<form id="${formId}" enctype="multipart/form-data">`;
 
-        if (service.args && service.args.length > 0) {
-            service.args.forEach(arg => {
-                const argType = arg.type || 'text';
-                const fieldId = `modal-${service.name}-${arg.id}`;
-                const tooltipHtml = arg.arg_description
-                    ? `<span class="arg-info-tooltip" data-tooltip="${escapeAttr(arg.arg_description)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>`
-                    : '';
-
-                if (argType === 'text') {
-                    formHtml += `
-                        <div class="form-group">
-                            <label for="${fieldId}">${escapeHtml(arg.label)}${tooltipHtml}</label>
-                            <input type="text" id="${fieldId}" name="${arg.id}" required placeholder="Enter ${arg.label.toLowerCase()}">
-                        </div>
-                    `;
-                } else if (argType === 'number') {
-                    formHtml += `
-                        <div class="form-group">
-                            <label for="${fieldId}">${escapeHtml(arg.label)}${tooltipHtml}</label>
-                            <input type="number" id="${fieldId}" name="${arg.id}" step="any" required placeholder="Enter ${arg.label.toLowerCase()}">
-                        </div>
-                    `;
-                } else if (argType === 'file') {
-                    const accept = arg.accept || '';
-                    formHtml += `
-                        <div class="form-group">
-                            <label for="${fieldId}">${escapeHtml(arg.label)}${tooltipHtml}</label>
-                            <div class="file-input-wrapper" id="wrapper-${fieldId}">
-                                <input type="file" id="${fieldId}" name="${arg.id}" accept="${accept}" required class="file-input-hidden">
-                                <div class="file-input-display">
-                                    <svg class="file-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                                    <span class="file-input-text">Choose file or drag here</span>
-                                    <span class="file-input-name"></span>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                } else if (argType === 'output_file') {
-                    formHtml += `
-                        <div class="form-group output-file-info">
-                            <label>${escapeHtml(arg.label)}${tooltipHtml}</label>
-                            <div class="output-file-badge">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                                <span>Generated automatically (${arg.extension || '.out'})</span>
-                            </div>
-                        </div>
-                    `;
+        if (service.type === 'docker') {
+            const isRunning = service.status === 'running';
+            formHtml += `
+                <div class="docker-controls" style="text-align: center; padding: 2rem 0;">
+                    ${isRunning
+                    ? `<button type="button" class="btn btn-secondary" id="stopDockerBtn-${service.name}">Stop App</button>
+                           <a href="http://localhost:${service.activePort || service.port || 8080}" target="_blank" class="btn btn-primary" style="margin-left:1rem;">Open Application</a>`
+                    : `<button type="button" class="btn btn-primary" id="startDockerBtn-${service.name}">Start App</button>`
                 }
-            });
-        }
-
-        // Execution info badge
-        let execInfoHtml = '';
-        if (service.execution && service.execution.wrapper) {
-            const wArgs = (service.execution.wrapperArgs || []).join(' ');
-            execInfoHtml = `
-                <div class="exec-info">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-                    <span>${escapeHtml(service.execution.wrapper)} ${escapeHtml(wArgs)}</span>
                 </div>
             `;
-        }
+            formHtml += `</form><div id="${resultId}" class="result-container"></div>`;
+        } else {
+            if (service.args && service.args.length > 0) {
+                service.args.forEach(arg => {
+                    const argType = arg.type || 'text';
+                    const fieldId = `modal-${service.name}-${arg.id}`;
+                    const tooltipHtml = arg.arg_description
+                        ? `<span class="arg-info-tooltip" data-tooltip="${escapeAttr(arg.arg_description)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>`
+                        : '';
 
-        formHtml += `
-            <button type="submit" class="btn btn-primary full-width" id="executeBtn-${service.name}">Execute</button>
-        </form>
-        <div id="${resultId}" class="result-container"></div>
-        `;
+                    if (argType === 'text') {
+                        formHtml += `
+                            <div class="form-group">
+                                <label for="${fieldId}">${escapeHtml(arg.label)}${tooltipHtml}</label>
+                                <input type="text" id="${fieldId}" name="${arg.id}" required placeholder="Enter ${arg.label.toLowerCase()}">
+                            </div>
+                        `;
+                    } else if (argType === 'number') {
+                        formHtml += `
+                            <div class="form-group">
+                                <label for="${fieldId}">${escapeHtml(arg.label)}${tooltipHtml}</label>
+                                <input type="number" id="${fieldId}" name="${arg.id}" step="any" required placeholder="Enter ${arg.label.toLowerCase()}">
+                            </div>
+                        `;
+                    } else if (argType === 'file') {
+                        const accept = arg.accept || '';
+                        formHtml += `
+                            <div class="form-group">
+                                <label for="${fieldId}">${escapeHtml(arg.label)}${tooltipHtml}</label>
+                                <div class="file-input-wrapper" id="wrapper-${fieldId}">
+                                    <input type="file" id="${fieldId}" name="${arg.id}" accept="${accept}" required class="file-input-hidden">
+                                    <div class="file-input-display">
+                                        <svg class="file-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                        <span class="file-input-text">Choose file or drag here</span>
+                                        <span class="file-input-name"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else if (argType === 'output_file') {
+                        formHtml += `
+                            <div class="form-group output-file-info">
+                                <label>${escapeHtml(arg.label)}${tooltipHtml}</label>
+                                <div class="output-file-badge">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                                    <span>Generated automatically (${arg.extension || '.out'})</span>
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+            }
+
+            // Execution info badge
+            if (service.execution && service.execution.wrapper) {
+                const wArgs = (service.execution.wrapperArgs || []).join(' ');
+                execInfoHtml = `
+                    <div class="exec-info">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                        <span>${escapeHtml(service.execution.wrapper)} ${escapeHtml(wArgs)}</span>
+                    </div>
+                `;
+            }
+
+            formHtml += `
+                <button type="submit" class="btn btn-primary full-width" id="executeBtn-${service.name}">Execute</button>
+            </form>
+            <div id="${resultId}" class="result-container"></div>
+            `;
+        }
 
         serviceModalBody.innerHTML = `
             <div class="service-modal-header">
@@ -309,119 +333,173 @@ document.addEventListener('DOMContentLoaded', () => {
         setupFileInputs(serviceModalBody);
 
         // Form submit
-        const form = serviceModalBody.querySelector(`#${formId}`);
-        const resultContainer = serviceModalBody.querySelector(`#${resultId}`);
-        const executeBtn = serviceModalBody.querySelector(`#executeBtn-${service.name}`);
+        if (service.type === 'docker') {
+            const resultContainer = serviceModalBody.querySelector(`#${resultId}`);
+            const startBtn = serviceModalBody.querySelector(`#startDockerBtn-${service.name}`);
+            const stopBtn = serviceModalBody.querySelector(`#stopDockerBtn-${service.name}`);
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            // Build FormData (includes both text fields and file inputs)
-            const formData = new FormData(form);
-
-            // Show loading state
-            resultContainer.innerHTML = '';
-            resultContainer.className = 'result-container';
-            resultContainer.innerHTML = `
-                <div class="result-box" style="display:block; color: var(--text-muted);">
-                    <div class="executing-spinner"></div>
-                    Executing...
-                </div>
-            `;
-            executeBtn.disabled = true;
-            executeBtn.textContent = 'Executing...';
-
-            try {
-                const res = await fetch(`/api/execute/${service.name}`, {
-                    method: 'POST',
-                    body: formData
+            if (startBtn) {
+                startBtn.addEventListener('click', async () => {
+                    startBtn.disabled = true;
+                    startBtn.textContent = 'Starting...';
+                    resultContainer.innerHTML = '<div class="result-box" style="display:block;">Starting docker application...</div>';
+                    try {
+                        const res = await fetch(`/api/docker/${service.name}/up`, { method: 'POST' });
+                        const data = await res.json();
+                        if (data.success) {
+                            closeModal(serviceModal);
+                            fetchServices();
+                        } else {
+                            resultContainer.innerHTML = `<div class="result-box error" style="display:block;">Error: ${escapeHtml(data.error)}</div>`;
+                            startBtn.disabled = false;
+                            startBtn.textContent = 'Start App';
+                        }
+                    } catch (e) {
+                        resultContainer.innerHTML = '<div class="result-box error" style="display:block;">Network error</div>';
+                        startBtn.disabled = false;
+                        startBtn.textContent = 'Start App';
+                    }
                 });
-
-                const data = await res.json();
-
-                if (data.success) {
-                    resultContainer.innerHTML = '';
-                    resultContainer.className = 'result-container';
-
-                    // Show stdout if present
-                    if (data.result) {
-                        const stdoutBox = document.createElement('div');
-                        stdoutBox.className = 'result-box success';
-                        stdoutBox.style.display = 'block';
-                        stdoutBox.textContent = `Output:\n${data.result}`;
-                        resultContainer.appendChild(stdoutBox);
-                    }
-
-                    // Show output files
-                    if (data.outputFiles && data.outputFiles.length > 0) {
-                        const filesBox = document.createElement('div');
-                        filesBox.className = 'output-files-container';
-
-                        data.outputFiles.forEach(file => {
-                            const fileEl = document.createElement('div');
-                            fileEl.className = 'output-file-item';
-
-                            if (file.mimeType && file.mimeType.startsWith('image/')) {
-                                // Show image preview
-                                fileEl.innerHTML = `
-                                    <p class="output-file-label">${escapeHtml(file.label)}</p>
-                                    <div class="output-image-preview">
-                                        <img src="${file.url}" alt="${escapeHtml(file.label)}" loading="lazy">
-                                    </div>
-                                    <a href="${file.url}" download class="btn btn-secondary output-download-btn">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                                        Download
-                                    </a>
-                                `;
-                            } else if (file.mimeType && (file.mimeType.startsWith('video/') || file.mimeType.startsWith('audio/'))) {
-                                // Show video/audio player
-                                const tag = file.mimeType.startsWith('video/') ? 'video' : 'audio';
-                                fileEl.innerHTML = `
-                                    <p class="output-file-label">${escapeHtml(file.label)}</p>
-                                    <${tag} controls class="output-media-preview">
-                                        <source src="${file.url}" type="${file.mimeType}">
-                                        Your browser does not support this media type.
-                                    </${tag}>
-                                    <a href="${file.url}" download class="btn btn-secondary output-download-btn">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                                        Download
-                                    </a>
-                                `;
-                            } else {
-                                // Generic file download
-                                fileEl.innerHTML = `
-                                    <p class="output-file-label">${escapeHtml(file.label)}</p>
-                                    <a href="${file.url}" download class="btn btn-secondary output-download-btn">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                                        Download ${file.extension || 'file'}
-                                    </a>
-                                `;
-                            }
-
-                            filesBox.appendChild(fileEl);
-                        });
-
-                        resultContainer.appendChild(filesBox);
-                    }
-
-                    // If no output at all
-                    if (!data.result && (!data.outputFiles || data.outputFiles.length === 0)) {
-                        const emptyBox = document.createElement('div');
-                        emptyBox.className = 'result-box success';
-                        emptyBox.style.display = 'block';
-                        emptyBox.textContent = 'Execution completed successfully (no output).';
-                        resultContainer.appendChild(emptyBox);
-                    }
-                } else {
-                    resultContainer.innerHTML = `<div class="result-box error" style="display:block;">Error:\n${escapeHtml(data.error)}</div>`;
-                }
-            } catch (err) {
-                resultContainer.innerHTML = '<div class="result-box error" style="display:block;">Execution failed. Check connection.</div>';
-            } finally {
-                executeBtn.disabled = false;
-                executeBtn.textContent = 'Execute';
             }
-        });
+
+            if (stopBtn) {
+                stopBtn.addEventListener('click', async () => {
+                    stopBtn.disabled = true;
+                    stopBtn.textContent = 'Stopping...';
+                    resultContainer.innerHTML = '<div class="result-box" style="display:block;">Stopping docker application...</div>';
+                    try {
+                        const res = await fetch(`/api/docker/${service.name}/down`, { method: 'POST' });
+                        const data = await res.json();
+                        if (data.success) {
+                            closeModal(serviceModal);
+                            fetchServices();
+                        } else {
+                            resultContainer.innerHTML = `<div class="result-box error" style="display:block;">Error: ${escapeHtml(data.error)}</div>`;
+                            stopBtn.disabled = false;
+                            stopBtn.textContent = 'Stop App';
+                        }
+                    } catch (e) {
+                        resultContainer.innerHTML = '<div class="result-box error" style="display:block;">Network error</div>';
+                        stopBtn.disabled = false;
+                        stopBtn.textContent = 'Stop App';
+                    }
+                });
+            }
+        } else {
+            const form = serviceModalBody.querySelector(`#${formId}`);
+            const resultContainer = serviceModalBody.querySelector(`#${resultId}`);
+            const executeBtn = serviceModalBody.querySelector(`#executeBtn-${service.name}`);
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                // Build FormData (includes both text fields and file inputs)
+                const formData = new FormData(form);
+
+                // Show loading state
+                resultContainer.innerHTML = '';
+                resultContainer.className = 'result-container';
+                resultContainer.innerHTML = `
+                    <div class="result-box" style="display:block; color: var(--text-muted);">
+                        <div class="executing-spinner"></div>
+                        Executing...
+                    </div>
+                `;
+                executeBtn.disabled = true;
+                executeBtn.textContent = 'Executing...';
+
+                try {
+                    const res = await fetch(`/api/execute/${service.name}`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await res.json();
+
+                    if (data.success) {
+                        resultContainer.innerHTML = '';
+                        resultContainer.className = 'result-container';
+
+                        // Show stdout if present
+                        if (data.result) {
+                            const stdoutBox = document.createElement('div');
+                            stdoutBox.className = 'result-box success';
+                            stdoutBox.style.display = 'block';
+                            stdoutBox.textContent = `Output:\n${data.result}`;
+                            resultContainer.appendChild(stdoutBox);
+                        }
+
+                        // Show output files
+                        if (data.outputFiles && data.outputFiles.length > 0) {
+                            const filesBox = document.createElement('div');
+                            filesBox.className = 'output-files-container';
+
+                            data.outputFiles.forEach(file => {
+                                const fileEl = document.createElement('div');
+                                fileEl.className = 'output-file-item';
+
+                                if (file.mimeType && file.mimeType.startsWith('image/')) {
+                                    // Show image preview
+                                    fileEl.innerHTML = `
+                                        <p class="output-file-label">${escapeHtml(file.label)}</p>
+                                        <div class="output-image-preview">
+                                            <img src="${file.url}" alt="${escapeHtml(file.label)}" loading="lazy">
+                                        </div>
+                                        <a href="${file.url}" download class="btn btn-secondary output-download-btn">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                            Download
+                                        </a>
+                                    `;
+                                } else if (file.mimeType && (file.mimeType.startsWith('video/') || file.mimeType.startsWith('audio/'))) {
+                                    // Show video/audio player
+                                    const tag = file.mimeType.startsWith('video/') ? 'video' : 'audio';
+                                    fileEl.innerHTML = `
+                                        <p class="output-file-label">${escapeHtml(file.label)}</p>
+                                        <${tag} controls class="output-media-preview">
+                                            <source src="${file.url}" type="${file.mimeType}">
+                                            Your browser does not support this media type.
+                                        </${tag}>
+                                        <a href="${file.url}" download class="btn btn-secondary output-download-btn">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                            Download
+                                        </a>
+                                    `;
+                                } else {
+                                    // Generic file download
+                                    fileEl.innerHTML = `
+                                        <p class="output-file-label">${escapeHtml(file.label)}</p>
+                                        <a href="${file.url}" download class="btn btn-secondary output-download-btn">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                            Download ${file.extension || 'file'}
+                                        </a>
+                                    `;
+                                }
+
+                                filesBox.appendChild(fileEl);
+                            });
+
+                            resultContainer.appendChild(filesBox);
+                        }
+
+                        // If no output at all
+                        if (!data.result && (!data.outputFiles || data.outputFiles.length === 0)) {
+                            const emptyBox = document.createElement('div');
+                            emptyBox.className = 'result-box success';
+                            emptyBox.style.display = 'block';
+                            emptyBox.textContent = 'Execution completed successfully (no output).';
+                            resultContainer.appendChild(emptyBox);
+                        }
+                    } else {
+                        resultContainer.innerHTML = `<div class="result-box error" style="display:block;">Error:\n${escapeHtml(data.error)}</div>`;
+                    }
+                } catch (err) {
+                    resultContainer.innerHTML = '<div class="result-box error" style="display:block;">Execution failed. Check connection.</div>';
+                } finally {
+                    executeBtn.disabled = false;
+                    executeBtn.textContent = 'Execute';
+                }
+            });
+        }
 
         // Delete button
         const deleteBtn = serviceModalBody.querySelector('#deleteServiceBtn');

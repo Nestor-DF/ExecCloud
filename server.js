@@ -5,6 +5,9 @@ const fs = require('fs/promises');
 const path = require('path');
 const { execFile } = require('child_process');
 const crypto = require('crypto');
+const AdmZip = require('adm-zip');
+
+const activeDockerServices = {};
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -83,6 +86,12 @@ app.get('/api/services', async (req, res) => {
             const content = await fs.readFile(path.join(SERVICES_DIR, file), 'utf-8');
             try {
                 const parsed = JSON.parse(content);
+                if (parsed.type === 'docker') {
+                    parsed.status = activeDockerServices[parsed.name] ? 'running' : 'stopped';
+                    if (activeDockerServices[parsed.name]) {
+                        parsed.activePort = activeDockerServices[parsed.name].port;
+                    }
+                }
                 services.push(parsed);
             } catch (e) {
                 console.error(`Error parsing ${file}:`, e);
@@ -251,19 +260,99 @@ app.post('/api/upload', serviceUpload.fields([
 ]), async (req, res) => {
     try {
         if (!req.files || !req.files.config || !req.files.binary) {
-            return res.status(400).json({ success: false, error: 'Both config and binary files are required.' });
+            return res.status(400).json({ success: false, error: 'Both config and payload files are required.' });
         }
 
         const binaryFile = req.files.binary[0];
+        const configPath = req.files.config[0].path;
 
-        // Ensure binary has execute permissions
-        const binaryPath = path.join(SERVICES_DIR, binaryFile.originalname);
-        await fs.chmod(binaryPath, 0o755);
+        const configContent = await fs.readFile(configPath, 'utf-8');
+        let configData;
+        try {
+            configData = JSON.parse(configContent);
+        } catch (e) {
+            return res.status(400).json({ success: false, error: 'Invalid config JSON file.' });
+        }
+
+        if (configData.type === 'docker') {
+            const zipPath = binaryFile.path;
+            const targetDir = path.join(SERVICES_DIR, configData.name);
+
+            // Delete target dir if exists to clean up old files
+            await fs.rm(targetDir, { recursive: true, force: true });
+            await fs.mkdir(targetDir, { recursive: true });
+
+            const zip = new AdmZip(zipPath);
+            zip.extractAllTo(targetDir, true);
+
+            // Delete the zip file after extraction
+            await fs.unlink(zipPath);
+        } else {
+            // Ensure binary has execute permissions
+            const binaryPath = path.join(SERVICES_DIR, binaryFile.originalname);
+            await fs.chmod(binaryPath, 0o755);
+        }
 
         res.json({ success: true, message: 'Service uploaded successfully.' });
     } catch (error) {
         console.error('Upload error:', error);
         res.status(500).json({ success: false, error: 'Failed to complete upload' });
+    }
+});
+
+// ── Docker App Control Endpoints ──
+app.post('/api/docker/:serviceName/up', async (req, res) => {
+    const { serviceName } = req.params;
+    if (!isValidServiceName(serviceName)) return res.status(400).json({ success: false, error: 'Invalid name' });
+
+    const configPath = path.join(SERVICES_DIR, `${serviceName}.json`);
+    const appDir = path.join(SERVICES_DIR, serviceName);
+
+    try {
+        const configData = JSON.parse(await fs.readFile(configPath, 'utf-8'));
+        if (configData.type !== 'docker') {
+            return res.status(400).json({ success: false, error: 'Not a docker service' });
+        }
+
+        const composePath = path.join(appDir, 'docker-compose.yml');
+        await fs.access(composePath);
+
+        execFile('docker', ['compose', '-f', composePath, 'up', '-d', '--build'], { cwd: appDir }, (error, stdout, stderr) => {
+            if (error) {
+                console.error(`Error starting docker app ${serviceName}:`, stderr || error);
+                return res.status(500).json({ success: false, error: stderr || error.message });
+            }
+
+            activeDockerServices[serviceName] = { port: configData.port || 8080 };
+            res.json({ success: true, message: 'Docker app started successfully', port: activeDockerServices[serviceName].port });
+        });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ success: false, error: 'Failed to start docker app. Make sure docker-compose.yml exists.' });
+    }
+});
+
+app.post('/api/docker/:serviceName/down', async (req, res) => {
+    const { serviceName } = req.params;
+    if (!isValidServiceName(serviceName)) return res.status(400).json({ success: false, error: 'Invalid name' });
+
+    const appDir = path.join(SERVICES_DIR, serviceName);
+
+    try {
+        const composePath = path.join(appDir, 'docker-compose.yml');
+
+        execFile('docker', ['compose', '-f', composePath, 'down'], { cwd: appDir }, (error, stdout, stderr) => {
+            if (error) {
+                console.error(`Error stopping docker app ${serviceName}:`, stderr || error);
+                return res.status(500).json({ success: false, error: stderr || error.message });
+            }
+
+            delete activeDockerServices[serviceName];
+            res.json({ success: true, message: 'Docker app stopped successfully' });
+        });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ success: false, error: 'Failed to stop docker app.' });
     }
 });
 
@@ -274,21 +363,44 @@ app.delete('/api/services/:serviceName', async (req, res) => {
         if (!isValidServiceName(serviceName)) {
             return res.status(400).json({ success: false, error: 'Invalid service name' });
         }
-        
+
         const configPath = path.join(SERVICES_DIR, `${serviceName}.json`);
         const binaryPath = path.join(SERVICES_DIR, serviceName);
-        
+
         // Ensure config exists before deleting
-        await fs.access(configPath);
-        
-        // Delete files
-        await fs.unlink(configPath);
+        let configData;
         try {
-            await fs.unlink(binaryPath);
-        } catch(e) {
-            console.error(`Warning: binary for ${serviceName} not found during deletion.`);
+            configData = JSON.parse(await fs.readFile(configPath, 'utf-8'));
+        } catch (e) {
+            return res.status(404).json({ success: false, error: 'Service not found.' });
         }
-        
+
+        if (configData.type === 'docker') {
+            const composePath = path.join(binaryPath, 'docker-compose.yml');
+            try {
+                await new Promise((resolve) => {
+                    execFile('docker', ['compose', '-f', composePath, 'down'], { cwd: binaryPath }, () => resolve());
+                });
+            } catch (e) { }
+
+            delete activeDockerServices[serviceName];
+
+            await fs.unlink(configPath);
+            try {
+                await fs.rm(binaryPath, { recursive: true, force: true });
+            } catch (e) {
+                console.error(`Warning: app folder for ${serviceName} not found during deletion.`);
+            }
+        } else {
+            // Delete files
+            await fs.unlink(configPath);
+            try {
+                await fs.unlink(binaryPath);
+            } catch (e) {
+                console.error(`Warning: binary for ${serviceName} not found during deletion.`);
+            }
+        }
+
         res.json({ success: true, message: 'Service deleted successfully.' });
     } catch (error) {
         console.error('Error deleting service:', error);

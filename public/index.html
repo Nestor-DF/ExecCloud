@@ -1,27 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ExecCloud — Run Compiled Binaries in the Cloud</title>
-    <meta name="description" content="ExecCloud lets you dynamically upload and execute compiled binaries on the server. Manage services with ease.">
+    <meta name="description"
+        content="ExecCloud lets you dynamically upload and execute compiled binaries on the server. Manage services with ease.">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <div class="app-container">
         <header>
             <h1><span class="highlight">ExecCloud</span></h1>
-            <p>Dynamically execute compiled binaries on the server.</p>
+            <p>Run binaries and docker apps in the cloud</p>
             <button id="openUploadBtn" class="btn btn-primary">Add New Service</button>
         </header>
 
         <!-- Search Bar -->
         <div class="search-container" id="searchContainer">
             <div class="search-input-wrapper">
-                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="text" id="searchInput" placeholder="Search services by name or description..." autocomplete="off">
-                <button id="clearSearchBtn" class="search-clear-btn" aria-label="Clear search" title="Clear search">&times;</button>
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input type="text" id="searchInput" placeholder="Search services by name or description..."
+                    autocomplete="off">
+                <button id="clearSearchBtn" class="search-clear-btn" aria-label="Clear search"
+                    title="Clear search">&times;</button>
             </div>
             <p id="searchResultsInfo" class="search-results-info"></p>
         </div>
@@ -49,7 +58,8 @@
                 <div class="form-group">
                     <label for="configFile">
                         Service Config (.json)
-                        <button type="button" id="configHelpToggle" class="config-help-toggle" aria-label="Show config format help" title="Show config format help">?</button>
+                        <button type="button" id="configHelpToggle" class="config-help-toggle"
+                            aria-label="Show config format help" title="Show config format help">?</button>
                     </label>
                     <input type="file" id="configFile" name="config" accept=".json" required>
                 </div>
@@ -58,91 +68,194 @@
                 <div id="configHelpPanel" class="config-help-panel">
                     <div class="config-help-content">
                         <h3>JSON Config Format</h3>
-                        <p>Each service requires a <code>.json</code> config file that describes the service name, arguments, and execution options.</p>
+                        <p>Each service requires a <code>.json</code> config file that describes the service name,
+                            arguments, and execution options.</p>
 
                         <h4>Required Fields</h4>
                         <table class="config-help-table">
-                            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Type</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
                             <tbody>
-                                <tr><td><code>name</code></td><td>string</td><td>Unique service identifier (must match binary filename)</td></tr>
-                                <tr><td><code>description</code></td><td>string</td><td>Human-readable description shown in the UI</td></tr>
-                                <tr><td><code>args</code></td><td>array</td><td>List of argument definitions (can be empty <code>[]</code>)</td></tr>
+                                <tr>
+                                    <td><code>name</code></td>
+                                    <td>string</td>
+                                    <td>Unique service identifier (must match binary filename)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>description</code></td>
+                                    <td>string</td>
+                                    <td>Human-readable description shown in the UI</td>
+                                </tr>
+                                <tr>
+                                    <td><code>args</code></td>
+                                    <td>array</td>
+                                    <td>List of argument definitions (can be empty <code>[]</code>)</td>
+                                </tr>
                             </tbody>
                         </table>
 
                         <h4>Optional Fields</h4>
                         <table class="config-help-table">
-                            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Type</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
                             <tbody>
-                                <tr><td><code>timeout</code></td><td>number</td><td>Execution timeout in seconds (default: 30)</td></tr>
-                                <tr><td><code>execution</code></td><td>object</td><td>Wrapper command config (e.g. for <code>mpirun</code>)</td></tr>
+                                <tr>
+                                    <td><code>type</code></td>
+                                    <td>string</td>
+                                    <td>Service type: <code>binary</code> (default) or <code>docker</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>port</code></td>
+                                    <td>number</td>
+                                    <td>Localhost port if <code>type</code> is <code>docker</code> (e.g. 8080)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>timeout</code></td>
+                                    <td>number</td>
+                                    <td>Execution timeout in seconds (default: 30)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>execution</code></td>
+                                    <td>object</td>
+                                    <td>Wrapper command config (e.g. for <code>mpirun</code>)</td>
+                                </tr>
                             </tbody>
                         </table>
 
                         <h4>Argument Types</h4>
                         <p>Each object in <code>args</code> is passed to the binary as a CLI argument, in order.</p>
                         <table class="config-help-table">
-                            <thead><tr><th>type</th><th>UI Input</th><th>Passed to Binary As</th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>type</th>
+                                    <th>UI Input</th>
+                                    <th>Passed to Binary As</th>
+                                </tr>
+                            </thead>
                             <tbody>
-                                <tr><td><code>text</code></td><td>Text field</td><td>String value</td></tr>
-                                <tr><td><code>number</code></td><td>Number field</td><td>String value</td></tr>
-                                <tr><td><code>file</code></td><td>File upload</td><td>Path to uploaded file</td></tr>
-                                <tr><td><code>output_file</code></td><td>Auto-generated</td><td>Path for binary to write output</td></tr>
+                                <tr>
+                                    <td><code>text</code></td>
+                                    <td>Text field</td>
+                                    <td>String value</td>
+                                </tr>
+                                <tr>
+                                    <td><code>number</code></td>
+                                    <td>Number field</td>
+                                    <td>String value</td>
+                                </tr>
+                                <tr>
+                                    <td><code>file</code></td>
+                                    <td>File upload</td>
+                                    <td>Path to uploaded file</td>
+                                </tr>
+                                <tr>
+                                    <td><code>output_file</code></td>
+                                    <td>Auto-generated</td>
+                                    <td>Path for binary to write output</td>
+                                </tr>
                             </tbody>
                         </table>
 
                         <h4>Argument Object Fields</h4>
                         <table class="config-help-table">
-                            <thead><tr><th>Field</th><th>Required</th><th>Description</th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Required</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
                             <tbody>
-                                <tr><td><code>id</code></td><td>Yes</td><td>Unique identifier for the argument</td></tr>
-                                <tr><td><code>label</code></td><td>Yes</td><td>Display label in the UI</td></tr>
-                                <tr><td><code>type</code></td><td>Yes</td><td><code>text</code>, <code>number</code>, <code>file</code>, or <code>output_file</code></td></tr>
-                                <tr><td><code>accept</code></td><td>No</td><td>MIME filter for <code>file</code> type (e.g. <code>image/*</code>)</td></tr>
-                                <tr><td><code>extension</code></td><td>No</td><td>File extension for <code>output_file</code> (e.g. <code>.png</code>)</td></tr>
-                                <tr><td><code>arg_description</code></td><td>No</td><td>Tooltip text shown next to the label</td></tr>
+                                <tr>
+                                    <td><code>id</code></td>
+                                    <td>Yes</td>
+                                    <td>Unique identifier for the argument</td>
+                                </tr>
+                                <tr>
+                                    <td><code>label</code></td>
+                                    <td>Yes</td>
+                                    <td>Display label in the UI</td>
+                                </tr>
+                                <tr>
+                                    <td><code>type</code></td>
+                                    <td>Yes</td>
+                                    <td><code>text</code>, <code>number</code>, <code>file</code>, or
+                                        <code>output_file</code>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><code>accept</code></td>
+                                    <td>No</td>
+                                    <td>MIME filter for <code>file</code> type (e.g. <code>image/*</code>)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>extension</code></td>
+                                    <td>No</td>
+                                    <td>File extension for <code>output_file</code> (e.g. <code>.png</code>)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>arg_description</code></td>
+                                    <td>No</td>
+                                    <td>Tooltip text shown next to the label</td>
+                                </tr>
                             </tbody>
                         </table>
 
                         <h4>Execution Wrapper (optional)</h4>
-                        <p>Use the <code>execution</code> block to run the binary through a wrapper like <code>mpirun</code>:</p>
+                        <p>Use the <code>execution</code> block to run the binary through a wrapper like
+                            <code>mpirun</code>:
+                        </p>
                         <pre><code>"execution": {
-  "wrapper": "mpirun",
-  "wrapperArgs": ["-np", "4"]
-}</code></pre>
+                                                "wrapper": "mpirun",
+                                                "wrapperArgs": ["-np", "4"]
+                                                }</code></pre>
                         <p>This produces: <code>mpirun -np 4 ./binary arg1 arg2 ...</code></p>
 
                         <h4>Full Example</h4>
                         <pre><code>{
-  "name": "filtro_cuda",
-  "description": "Applies a filter using CUDA.",
-  "timeout": 60,
-  "args": [
-    {
-      "id": "input_image",
-      "label": "Input Image",
-      "type": "file",
-      "accept": "image/*"
-    },
-    {
-      "id": "output_image",
-      "label": "Output Image",
-      "type": "output_file",
-      "extension": ".png"
-    },
-    {
-      "id": "blockX",
-      "label": "Block X",
-      "type": "number",
-      "arg_description": "Threads per block in X."
-    }
-  ]
-}</code></pre>
+                                    "name": "filtro_cuda",
+                                    "description": "Applies a filter using CUDA.",
+                                    "timeout": 60,
+                                    "args": [
+                                        {
+                                        "id": "input_image",
+                                        "label": "Input Image",
+                                        "type": "file",
+                                        "accept": "image/*"
+                                        },
+                                        {
+                                        "id": "output_image",
+                                        "label": "Output Image",
+                                        "type": "output_file",
+                                        "extension": ".png"
+                                        },
+                                        {
+                                        "id": "blockX",
+                                        "label": "Block X",
+                                        "type": "number",
+                                        "arg_description": "Threads per block in X."
+                                        }
+                                    ]
+                                    }</code></pre>
+                        <h4>Docker Applications</h4>
+                        <p>If you set <code>"type": "docker"</code>, upload a <code>.zip</code> archive containing your
+                            app source code, <code>Dockerfile</code>, and <code>docker-compose.yml</code> instead of a
+                            binary file. The application will be started using <code>docker compose</code>.</p>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label for="binaryFile">Executable Binary</label>
+                    <label for="binaryFile">Executable Binary or App Archive (.zip)</label>
                     <input type="file" id="binaryFile" name="binary" required>
                 </div>
                 <button type="submit" class="btn btn-primary full-width">Upload Service</button>
@@ -163,4 +276,5 @@
 
     <script src="app.js"></script>
 </body>
+
 </html>
