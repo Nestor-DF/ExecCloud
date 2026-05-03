@@ -4,6 +4,8 @@
 
 **ExecCloud** es una plataforma web que permite subir, gestionar y ejecutar binarios compilados de forma dinámica a través del navegador. Está diseñada para ser completamente genérica: cualquier programa ejecutable puede convertirse en un "servicio" accesible desde la web, sin modificar el código de la aplicación, simplemente proporcionando un binario y un archivo de configuración JSON.
 
+Además, la plataforma soporta el despliegue de **aplicaciones contenerizadas (Docker)**. Se pueden subir aplicaciones web completas empaquetadas en un archivo `.zip` que contenga su propio `Dockerfile` y `docker-compose.yml`, y ExecCloud gestionará su ciclo de vida (Start/Stop) permitiendo acceder a ellas a través de su puerto asignado.
+
 ---
 
 ## Tecnologías Utilizadas
@@ -158,15 +160,25 @@ Ejecuta un servicio. Acepta `multipart/form-data` para soportar tanto campos de 
 
 ### `POST /api/upload`
 
-Sube un nuevo servicio (binario + JSON de configuración). Usa `multipart/form-data` con campos `config` y `binary`. Automáticamente establece permisos de ejecución (`chmod 755`) en el binario.
+Sube un nuevo servicio. Usa `multipart/form-data` con campos `config` (archivo JSON) y `binary`.
+- **Para binarios normales:** Automáticamente establece permisos de ejecución (`chmod 755`) en el binario.
+- **Para aplicaciones Docker:** Se espera que `binary` sea un archivo `.zip` con el código fuente, incluyendo `Dockerfile` y `docker-compose.yml`. El backend lo extraerá automáticamente en el directorio del servicio.
 
 ### `DELETE /api/services/:serviceName`
 
-Elimina un servicio (borra el binario y su archivo JSON).
+Elimina un servicio. Si es de tipo Docker, primero ejecuta `docker compose down` para detener los contenedores antes de borrar los archivos (binario/directorio y archivo JSON).
 
 ### `GET /api/tmp/*`
 
 Ruta estática que sirve archivos de salida temporales para que el frontend pueda descargarlos o mostrarlos.
+
+### `POST /api/docker/:serviceName/up`
+
+Inicia una aplicación contenerizada utilizando `docker compose up -d --build`. Sólo aplicable si el servicio tiene `"type": "docker"` en su configuración JSON.
+
+### `POST /api/docker/:serviceName/down`
+
+Detiene una aplicación contenerizada utilizando `docker compose down`.
 
 ---
 
@@ -204,7 +216,9 @@ Cada servicio se define con un archivo `.json` cuyo nombre debe coincidir con el
 |-------|-----------|-------------|
 | `name` | Sí | Identificador único, debe coincidir con el nombre del binario |
 | `description` | Sí | Descripción mostrada en la interfaz |
-| `args` | Sí | Array de definiciones de argumentos (puede estar vacío) |
+| `type` | No | Define el tipo de servicio. Valor por defecto: (vacío, binario). Usar `"docker"` para aplicaciones contenerizadas. |
+| `port` | No | Obligatorio si `type` es `"docker"`. Puerto en el que la aplicación mapeará su salida para que el usuario pueda acceder (ej: `3000`). |
+| `args` | Sí | Array de definiciones de argumentos (puede estar vacío). No aplica para servicios `"docker"`. |
 | `timeout` | No | Timeout en segundos (default: 30) |
 | `execution` | No | Configuración del wrapper de ejecución |
 
@@ -257,6 +271,7 @@ Comando resultante: `mpirun -np 4 ./services/filtro_mpi <arg1> <arg2> ...`
 2. **Barra de búsqueda**: Filtra servicios por nombre y descripción (búsqueda por palabras, todas deben coincidir).
 3. **Paginación**: Navegación por páginas (12 servicios por página).
 4. **Modal de ejecución**: Formulario dinámico generado según la configuración del servicio. Soporta inputs de texto, numéricos, uploads de archivo con drag-and-drop, y badges informativos para output files. Muestra resultados inline (stdout como texto, imágenes como preview, video/audio con player, otros como descarga).
+   - Para servicios **Docker**: Muestra una interfaz especial con controles "Start App" y "Stop App", así como un botón "Open Application" que redirige al puerto del servicio.
 5. **Modal de upload**: Formulario para subir nuevos servicios con ayuda integrada (panel colapsable con documentación del formato JSON).
 6. **Tooltips**: Los argumentos con `arg_description` muestran un icono ⓘ con tooltip CSS al pasar el cursor.
 
@@ -322,6 +337,24 @@ Usuario abre tarjeta → Modal con formulario dinámico
 ```bash
 ./filtro_cuda entrada.png salida.png 16 16
 ```
+
+### Ejemplo: Aplicación Web con Docker
+
+**`webapp.json`:**
+```json
+{
+  "name": "webapp",
+  "description": "Servicio web contenerizado con Node.js",
+  "type": "docker",
+  "port": 3000,
+  "args": []
+}
+```
+
+El archivo `binary` subido debe ser un `.zip` que contenga en su raíz:
+- `Dockerfile`
+- `docker-compose.yml` (donde exponga el puerto 3000 a través de `ports: ["3000:3000"]`)
+- Código fuente de la aplicación (ej. `package.json`, `index.js`).
 
 ---
 
